@@ -41,6 +41,7 @@ $ cmake ../
 $ make
 
 copy all data from "data" folder to the build folder
+
 connect your camera
 
 run "Photobox" application
