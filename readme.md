@@ -13,20 +13,31 @@ The meta file musst have the same name as the overlay but as filetype "xxx.meta"
 to compile it on a pi 
 
 run in terminal (install dependencies)
+
 $ sudo apt-get install build-essential
+
 $ sudo apt-get install libopencv-dev
+
 $ sudo apt-get install libgphoto2*
+
 $ sudo apt-get install libxdg*
+
 $ sudo apt-get install qt6-base-dev
+
 $ sudo apt-get install qt6-wayland
+
 $ sudo apt-get install libxkbcommon*
 
 copy "code" folder from git
 
 create a "build" folder in your code folder
+
 run in terminal
+
 $ cd [path to your build folder]
+
 $ cmake ../
+
 $ make
 
 copy all data from "data" folder to the build folder
