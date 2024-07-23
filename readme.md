@@ -8,33 +8,6 @@ Also a "backgound.jpg", a "error.jpg", a "photo.jpg" and a "processing.jpg" are 
 Logos and Overlays musst be a "xxx.png" file. For example "Logo.png" not "Logo.PNG".
 The meta file musst have the same name as the overlay but as filetype "xxx.meta"
 
-a meta example
-------------------------------------------------------------------------------
-#count = "1" 
-#
-#number of photos needed limited to 10 photos 
-#
-#photow1 = "300"
-#photoh1 = "200"
-#photor1 = "90"
-#photox1 = "100"
-#photoy1 = "200"
-#
-# photo 1 is placed at 100,200 pixels (top left corner)
-# with the size of 300x200 pixels and 90° ccw rotated
-#
-
-count = "1"
-photow0 = "4972"
-photoh0 = "3322"
-photor0 = "0"
-photox0 = "515"
-photoy0 = "339"
-------------------------------------------------------------------------------
-
-
-
-
 ------------------------------------------------------------------------------
 
 to compile it on a pi 
