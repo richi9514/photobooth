@@ -1,0 +1,38 @@
+#count = "1" 
+#
+#number of photos needed limited to 10 photos 
+#
+#photow1 = "300"
+#photoh1 = "200"
+#photor1 = "90"
+#photox1 = "100"
+#photoy1 = "200"
+#
+# photo 1 is placed at 100,200 pixels (top left corner)
+# with the size of 300x200 pixels and 90° ccw rotated
+#
+
+count = "4"
+photow0 = "2272"
+photoh0 = "1522"
+photor0 = "0"
+photox0 = "489"
+photoy0 = "322"
+
+photow1 = "2272"
+photoh1 = "1522"
+photor1 = "0"
+photox1 = "3239"
+photoy1 = "322"
+
+photow2 = "2272"
+photoh2 = "1522"
+photor2 = "0"
+photox2 = "489"
+photoy2 = "2156"
+
+photow3 = "2272"
+photoh3 = "1522"
+photor3 = "0"
+photox3 = "3239"
+photoy3 = "2156"
