@@ -437,16 +437,6 @@ Gui::Gui(QWidget *parent)
         }
         startButton();
     }
-    
-
-    // Connect button signal to appropriate slot  //mit &class::methode bei methoden ohne inputs möglich
-    //connect(btn[1], &QPushButton::released, this, &t&Gui::handleButton); -> wenn handleButton keine inputs hätte
-    //connect(btn[1], &QPushButton::released, this, [=](){this->handleButton();});
-    //
-    //annoyme funktion
-    //[=](){this->handleButton(1);}
-    // = für den 1. aufruf | in den () können übergabeparameter stehen, nur wenn keine methode aufgerufen wird | das was wirklcih passiert
-    //[=]                   ()                                                                                  {this->handleButton(1);}
 }
 
 void Gui::startButton()
