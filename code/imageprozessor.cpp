@@ -1,8 +1,17 @@
 #include "imageprozessor.h"
 
-ImageProzessor::ImageProzessor(std::string pFolderLogo, std::string pFolderOvlerlay, int iDisplayHeight)
+ImageProzessor::ImageProzessor(std::string pFolderLogo, std::string pFolderOvlerlay, int iNewDisplayHeight)
 {
+	//delete old helper img
+	try
+	{
+		std::filesystem::remove("testPhoto.jpg");
+	}
+	catch(...)
+	{}
+	
     //get sensor and preview size
+    iDisplayHeight = iNewDisplayHeight;
     cam = new CameraControler(iDisplayHeight);
     logoFactor = float(iLogoSize) / 100;
     helperImg[0] = cam->GetPreview();
@@ -17,34 +26,7 @@ ImageProzessor::ImageProzessor(std::string pFolderLogo, std::string pFolderOvler
 
     cv::resize(background, backgroundPreview, cv::Size(iPvWidth, iPvHeight), cv::INTER_NEAREST);
 
-    pSavePhoto = "";
-
-    for (const auto & entry : std::filesystem::directory_iterator("/media"))
-    {
-        for (const auto & entry2 : std::filesystem::directory_iterator(entry.path()))
-        {
-            pSavePhoto = entry2.path();
-            break;
-        }
-        break;
-    }
-
-    if (pSavePhoto != "")
-    {
-        pSavePhoto = pSavePhoto + "/Fotos";
-        if ( !std::filesystem::exists(pSavePhoto))
-        {
-            std::filesystem::create_directory(pSavePhoto);
-        }
-    }
-    else
-    {
-        pSavePhoto = "./Fotos";
-        if ( !std::filesystem::exists(pSavePhoto))
-        {
-            std::filesystem::create_directory(pSavePhoto);
-        }
-    }
+    this->checkUsbDrive();
 
     if (iPvWidth != iSensorWidth)
     {
@@ -101,6 +83,38 @@ ImageProzessor::ImageProzessor(std::string pFolderLogo, std::string pFolderOvler
 
 }
 
+void ImageProzessor::checkUsbDrive()
+{
+	pSavePhoto = "";
+
+    for (const auto & entry : std::filesystem::directory_iterator("/media"))
+    {
+        for (const auto & entry2 : std::filesystem::directory_iterator(entry.path()))
+        {
+            pSavePhoto = entry2.path();
+            break;
+        }
+        break;
+    }
+
+    if (pSavePhoto != "")
+    {
+        pSavePhoto = pSavePhoto + "/Fotos";
+        if ( !std::filesystem::exists(pSavePhoto))
+        {
+            std::filesystem::create_directory(pSavePhoto);
+        }
+    }
+    else
+    {
+        pSavePhoto = "./Fotos";
+        if ( !std::filesystem::exists(pSavePhoto))
+        {
+            std::filesystem::create_directory(pSavePhoto);
+        }
+    }
+}
+
 void ImageProzessor::overlayImage(cv::Mat* src, cv::Mat* overlay, const cv::Point& location)
 {
     for (int y = cv::max(location.y, 0); y < src->rows; ++y)
@@ -140,488 +154,498 @@ cv::Mat ImageProzessor::getImage()
     
     cv::Mat img;
     
-    try
-    {
-        //do the matchig
-        switch (iStateTakePhoto)
-        {
-        case 0 :
-            img = cam->GetPreview();
-
-            cv::flip(img,img,1);
-
-            switch (iPiuctureMode)
-            {
-            case 0 :
-                //usually not needed
-                break;
-
-
-            case 1 : //logo
-
-                switch(iLogoEdge)
-                {
-                case 0:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 1:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 2:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 3:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-                }
-                break;
-
-            case 2 : //overlay
-                helperImg[10] = backgroundPreview;
-
-                for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
-                {
-                    if (i > 1 && overlays[iOverlayIndex].getPreviewAlias(i) != -1)
-                    {
-                        helperImg[overlays[iOverlayIndex].getPreviewAlias(i)].copyTo(helperImg[i]);
-                    }
-                    else
-                    {
-                        cv::resize(img,
-                                   helperImg[i],
-                                   cv::Size(overlays[iOverlayIndex].getPreviewSizeX(i),
-                                            overlays[iOverlayIndex].getPreviewSizeY(i)),
-                                   cv::INTER_NEAREST);
-
-                        try
-                        {
-                            if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
-                            {
-                                double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
-                                cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
-                                cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
-
-                                cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
-
-                                rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
-                                rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
-
-                                cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
-
-                            }
-                        }
-                        catch(...)
-                        {
-                            ;
-                        }
-                    }
-
-                    try
-                    {
-                        helperImg[11] = cv::Mat( helperImg[10],
-                                                cv::Rect(overlays[iOverlayIndex].getPreviewPosiX(i),
-                                                         overlays[iOverlayIndex].getPreviewPosiY(i),
-                                                         helperImg[i].cols,
-                                                         helperImg[i].rows));
-                        helperImg[i].copyTo(helperImg[11]);
-                    }
-                    catch(...)
-                    {
-                        ;
-                    }
-                }
-
-                helperImg[12] = overlays[iOverlayIndex].getPreviewImg();
-
-                overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
-
-                img = helperImg[10];
-                break;
-
-            }
-
-            iCounterPhotos = 0;
-
-            break;
-
-        case 1 :
-            img = cam->GetPreview();
-
-            cv::flip(img,img,1);
-
-            switch (iPiuctureMode)
-            {
-            case 0 :
-                //usually not needed
-                break;
-
-
-            case 1 : //logo
-
-                switch(iLogoEdge)
-                {
-                case 0:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 1:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 2:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 3:
-                    overlayImage(&img,
-                                 &previewLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-                }
-                break;
-
-            case 2 : //overlay
-
-                if (overlays[iOverlayIndex].getPhotosInOverlay() == 1)
-                {
-                    helperImg[10] = backgroundPreview;
-
-                    for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
-                    {
-                        cv::resize(img,
-                                   helperImg[i],
-                                   cv::Size(overlays[iOverlayIndex].getPreviewSizeX(i),
-                                            overlays[iOverlayIndex].getPreviewSizeY(i)),
-                                   cv::INTER_NEAREST);
-
-                        try
-                        {
-                            if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
-                            {
-                                double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
-                                cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
-                                cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
-
-                                cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
-
-                                rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
-                                rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
-
-                                cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
-
-                            }
-                        }
-                        catch(...)
-                        {
-                        }
-
-                        try
-                        {
-                            helperImg[11] = cv::Mat( helperImg[10],
-                                                    cv::Rect(overlays[iOverlayIndex].getPreviewPosiX(i),
-                                                             overlays[iOverlayIndex].getPreviewPosiY(i),
-                                                             helperImg[i].cols,
-                                                             helperImg[i].rows));
-                            helperImg[i].copyTo(helperImg[11]);
-                        }
-                        catch(...)
-                        {
-                            ;
-                        }
-                    }
-
-                    helperImg[12] = overlays[iOverlayIndex].getPreviewImg();
-
-                    overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
-
-                    img = helperImg[10];
-                }
-                break;
-
-            }
-
-            if (time(0) >= start_time)
-            {
-                img = cv::imread("photo.jpg", cv::IMREAD_UNCHANGED);
-                iStateTakePhoto = 2;
-            }
-
-            break;
-
-        case 2 :
-            
-            iStateTakePhoto = 3;
-            img = cv::imread("photo.jpg", cv::IMREAD_UNCHANGED);
-            break;
-
-        case 3 :
-
-            pPhotos[iCounterPhotos] = pSavePhoto +
-                                      "/img_" +
-                                      std::to_string(std::localtime(&start_time)->tm_year + 1900) + "_" +
-                                      std::to_string(std::localtime(&start_time)->tm_mon) + "_" +
-                                      std::to_string(std::localtime(&start_time)->tm_mday) + "-" +
-                                      std::to_string(std::localtime(&start_time)->tm_hour) + "_" +
-                                      std::to_string(std::localtime(&start_time)->tm_min) + "_" +
-                                      std::to_string(std::localtime(&start_time)->tm_sec) + ".jpg";
-
-            cam->GetPhoto(pPhotos[iCounterPhotos]);
-
-            iCounterPhotos++;
-
-            img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
-
-            iStateTakePhoto = 4;
-
-            break;
-
-
-        case 4 :
-
-            if (iPiuctureMode != 2)
-            {
-                iStateTakePhoto = 5;
-            }
-            else
-            {
-                if (iCounterPhotos >= overlays[iOverlayIndex].getPhotosInOverlay())
-                {
-                    iStateTakePhoto = 5;
-                }
-                else
-                {
-                    iStateTakePhoto = 41;
-                }
-
-            }
-
-            img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
-            break;
-
-        case 41:
-        
-            iStateTakePhoto++;
-            img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
-            break;
-            
-        case 42:
-        
-            iStateTakePhoto++;
-            img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
-            break;
-
-        case 43:
-        
-            iStateTakePhoto = 1;
-            start_time = time(0) + 10;
-            img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
-            break;
-            
-        case 5 :
-
-            finalPhoto = pSavePhoto +
-                         "/img_" +
-                         std::to_string(std::localtime(&start_time)->tm_year + 1900) + "_" +
-                         std::to_string(std::localtime(&start_time)->tm_mon) + "_" +
-                         std::to_string(std::localtime(&start_time)->tm_mday) + "-" +
-                         std::to_string(std::localtime(&start_time)->tm_hour) + "_" +
-                         std::to_string(std::localtime(&start_time)->tm_min) + "_" +
-                         std::to_string(std::localtime(&start_time)->tm_sec);
-
-            switch (iPiuctureMode)
-            {
-            case 0 :
-
-                img =  cv::imread(pPhotos[0], cv::IMREAD_UNCHANGED);
-                cv::flip(img,img,1);
-                finalPhoto = finalPhoto + "_fliped";
-                break;
-
-
-            case 1 : //logo
-
-
-                img =  cv::imread(pPhotos[0], cv::IMREAD_UNCHANGED);
-                cv::flip(img,img,1);
-
-                switch(iLogoEdge)
-                {
-                case 0:
-                    overlayImage(&img,
-                                 &photoLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - photoLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - photoLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 1:
-                    overlayImage(&img,
-                                 &photoLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     img.rows - photoLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 2:
-                    overlayImage(&img,
-                                 &photoLogos[iLogoIndex],
-                                 cv::Point(
-                                     0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-
-                case 3:
-                    overlayImage(&img,
-                                 &photoLogos[iLogoIndex],
-                                 cv::Point(
-                                     img.cols - photoLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
-                                     0 + ( img.rows * iLogoDistanceVertical ) / 100));
-                    break;
-                }
-
-                finalPhoto = finalPhoto + "_logo";
-
-                break;
-
-            case 2 : //overlay
-                cv::resize(background, helperImg[10], cv::Size(iSensorWidth, iSensorHeight), cv::INTER_NEAREST);
-
-
-                for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
-                {
-
-                    img = cv::imread(pPhotos[i], cv::IMREAD_UNCHANGED);
-
-                    cv::flip(img,img,1);
-
-                    cv::resize(img,
-                               helperImg[i],
-                               cv::Size(overlays[iOverlayIndex].getPhotoSizeX(i),
-                                        overlays[iOverlayIndex].getPhotoSizeY(i)),
-                               cv::INTER_NEAREST);
-
-                    try
-                    {
-                        if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
-                        {
-                            double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
-                            cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
-                            cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
-
-                            cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
-
-                            rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
-                            rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
-
-                            cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
-
-                        }
-                    }
-                    catch(...)
-                    {
-                        ;
-                    }
-
-                    try
-                    {
-                        helperImg[11] = cv::Mat( helperImg[10],
-                                                cv::Rect(overlays[iOverlayIndex].getPhotoPosiX(i),
-                                                         overlays[iOverlayIndex].getPhotoPosiY(i),
-                                                         helperImg[i].cols,
-                                                         helperImg[i].rows));
-                        helperImg[i].copyTo(helperImg[11]);
-                    }
-                    catch(...)
-                    {
-                        ;
-                    }
-                }
-
-                helperImg[12] = overlays[iOverlayIndex].getFullImg();
-
-                overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
-
-                img = helperImg[10];
-
-                finalPhoto = finalPhoto + "_overlay";
-
-                break;
-            }
-
-            finalPhoto = finalPhoto + ".jpg";
-
-            cv::imwrite(finalPhoto, img);
-
-            start_time = time(0) + 10;
-
-            iStateTakePhoto = 6;
-
-            break;
-
-        case 6:
-
-            img =  cv::imread(finalPhoto, cv::IMREAD_UNCHANGED);
-
-            if (time(0) >= start_time)
-            {
-                iStateTakePhoto = 0;
-            }
-
-            break;
-
-        case 7:
-
-            img =  cv::imread(finalPhoto, cv::IMREAD_UNCHANGED);
-
-            if (time(0) >= start_time)
-            {
-                iStateTakePhoto = 0;
-            }
-
-            break;
-
-        default:
-            img = cv::imread("error.jpg", cv::IMREAD_UNCHANGED);
-        }
+    if (cam->CameraInError())
+	{
+		cam = new CameraControler(iDisplayHeight);
+		img = cv::imread("error.jpg", cv::IMREAD_UNCHANGED);
+	}
+	else
+	{
+		try
+		{
+			//do the matchig
+			switch (iStateTakePhoto)
+			{
+			case 0 :
+				img = cam->GetPreview();
+
+				cv::flip(img,img,1);
+
+				switch (iPiuctureMode)
+				{
+				case 0 :
+					//usually not needed
+					break;
+
+
+				case 1 : //logo
+
+					switch(iLogoEdge)
+					{
+					case 0:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 1:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 2:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 3:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+					}
+					break;
+
+				case 2 : //overlay
+					helperImg[10] = backgroundPreview;
+
+					for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
+					{
+						if (i > 1 && overlays[iOverlayIndex].getPreviewAlias(i) != -1)
+						{
+							helperImg[overlays[iOverlayIndex].getPreviewAlias(i)].copyTo(helperImg[i]);
+						}
+						else
+						{
+							cv::resize(img,
+									   helperImg[i],
+									   cv::Size(overlays[iOverlayIndex].getPreviewSizeX(i),
+												overlays[iOverlayIndex].getPreviewSizeY(i)),
+									   cv::INTER_NEAREST);
+
+							try
+							{
+								if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
+								{
+									double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
+									cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
+									cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
+
+									cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
+
+									rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
+									rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
+
+									cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
+
+								}
+							}
+							catch(...)
+							{
+								;
+							}
+						}
+
+						try
+						{
+							helperImg[11] = cv::Mat( helperImg[10],
+													cv::Rect(overlays[iOverlayIndex].getPreviewPosiX(i),
+															 overlays[iOverlayIndex].getPreviewPosiY(i),
+															 helperImg[i].cols,
+															 helperImg[i].rows));
+							helperImg[i].copyTo(helperImg[11]);
+						}
+						catch(...)
+						{
+							;
+						}
+					}
+
+					helperImg[12] = overlays[iOverlayIndex].getPreviewImg();
+
+					overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
+
+					img = helperImg[10];
+					break;
+
+				}
+
+				iCounterPhotos = 0;
+
+				break;
+
+			case 1 :
+				img = cam->GetPreview();
+
+				cv::flip(img,img,1);
+
+				switch (iPiuctureMode)
+				{
+				case 0 :
+					//usually not needed
+					break;
+
+
+				case 1 : //logo
+
+					switch(iLogoEdge)
+					{
+					case 0:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 1:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - previewLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 2:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 3:
+						overlayImage(&img,
+									 &previewLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - previewLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+					}
+					break;
+
+				case 2 : //overlay
+
+					if (overlays[iOverlayIndex].getPhotosInOverlay() == 1)
+					{
+						helperImg[10] = backgroundPreview;
+
+						for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
+						{
+							cv::resize(img,
+									   helperImg[i],
+									   cv::Size(overlays[iOverlayIndex].getPreviewSizeX(i),
+												overlays[iOverlayIndex].getPreviewSizeY(i)),
+									   cv::INTER_NEAREST);
+
+							try
+							{
+								if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
+								{
+									double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
+									cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
+									cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
+
+									cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
+
+									rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
+									rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
+
+									cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
+
+								}
+							}
+							catch(...)
+							{
+							}
+
+							try
+							{
+								helperImg[11] = cv::Mat( helperImg[10],
+														cv::Rect(overlays[iOverlayIndex].getPreviewPosiX(i),
+																 overlays[iOverlayIndex].getPreviewPosiY(i),
+																 helperImg[i].cols,
+																 helperImg[i].rows));
+								helperImg[i].copyTo(helperImg[11]);
+							}
+							catch(...)
+							{
+								;
+							}
+						}
+
+						helperImg[12] = overlays[iOverlayIndex].getPreviewImg();
+
+						overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
+
+						img = helperImg[10];
+					}
+					break;
+
+				}
+
+				if (time(0) >= start_time)
+				{
+					img = cv::imread("photo.jpg", cv::IMREAD_UNCHANGED);
+					iStateTakePhoto = 2;
+				}
+
+				break;
+
+			case 2 :
+				
+				iStateTakePhoto = 3;
+				img = cv::imread("photo.jpg", cv::IMREAD_UNCHANGED);
+				break;
+
+			case 3 :
+			
+				this->checkUsbDrive();
+
+				pPhotos[iCounterPhotos] = pSavePhoto +
+										  "/img_" +
+										  std::to_string(std::localtime(&start_time)->tm_year + 1900) + "_" +
+										  std::to_string(std::localtime(&start_time)->tm_mon + 1) + "_" +
+										  std::to_string(std::localtime(&start_time)->tm_mday) + "-" +
+										  std::to_string(std::localtime(&start_time)->tm_hour) + "_" +
+										  std::to_string(std::localtime(&start_time)->tm_min) + "_" +
+										  std::to_string(std::localtime(&start_time)->tm_sec) + ".jpg";
+
+				cam->GetPhoto(pPhotos[iCounterPhotos]);
+
+				iCounterPhotos++;
+
+				img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
+
+				iStateTakePhoto = 4;
+
+				break;
+
+
+			case 4 :
+
+				if (iPiuctureMode != 2)
+				{
+					iStateTakePhoto = 5;
+				}
+				else
+				{
+					if (iCounterPhotos >= overlays[iOverlayIndex].getPhotosInOverlay())
+					{
+						iStateTakePhoto = 5;
+					}
+					else
+					{
+						iStateTakePhoto = 41;
+					}
+
+				}
+
+				img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
+				break;
+
+			case 41:
+			
+				iStateTakePhoto++;
+				img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
+				break;
+				
+			case 42:
+			
+				iStateTakePhoto++;
+				img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
+				break;
+
+			case 43:
+			
+				iStateTakePhoto = 1;
+				start_time = time(0) + 10;
+				img = cv::imread("processing.jpg", cv::IMREAD_UNCHANGED);
+				break;
+				
+			case 5 :
+				this->checkUsbDrive();
+				
+				finalPhoto = pSavePhoto +
+							 "/img_" +
+							 std::to_string(std::localtime(&start_time)->tm_year + 1900) + "_" +
+							 std::to_string(std::localtime(&start_time)->tm_mon + 1) + "_" +
+							 std::to_string(std::localtime(&start_time)->tm_mday) + "-" +
+							 std::to_string(std::localtime(&start_time)->tm_hour) + "_" +
+							 std::to_string(std::localtime(&start_time)->tm_min) + "_" +
+							 std::to_string(std::localtime(&start_time)->tm_sec);
+
+				switch (iPiuctureMode)
+				{
+				case 0 :
+
+					img =  cv::imread(pPhotos[0], cv::IMREAD_UNCHANGED);
+					cv::flip(img,img,1);
+					finalPhoto = finalPhoto + "_fliped";
+					break;
+
+
+				case 1 : //logo
+
+
+					img =  cv::imread(pPhotos[0], cv::IMREAD_UNCHANGED);
+					cv::flip(img,img,1);
+
+					switch(iLogoEdge)
+					{
+					case 0:
+						overlayImage(&img,
+									 &photoLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - photoLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - photoLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 1:
+						overlayImage(&img,
+									 &photoLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 img.rows - photoLogos[iLogoIndex].rows - ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 2:
+						overlayImage(&img,
+									 &photoLogos[iLogoIndex],
+									 cv::Point(
+										 0 + ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+
+					case 3:
+						overlayImage(&img,
+									 &photoLogos[iLogoIndex],
+									 cv::Point(
+										 img.cols - photoLogos[iLogoIndex].cols - ( img.cols * iLogoDistanceHorizontal ) / 100,
+										 0 + ( img.rows * iLogoDistanceVertical ) / 100));
+						break;
+					}
+
+					finalPhoto = finalPhoto + "_logo";
+
+					break;
+
+				case 2 : //overlay
+					cv::resize(background, helperImg[10], cv::Size(iSensorWidth, iSensorHeight), cv::INTER_NEAREST);
+
+
+					for(int i = 0; i < overlays[iOverlayIndex].getPhotosInOverlay(); i++)
+					{
+
+						img = cv::imread(pPhotos[i], cv::IMREAD_UNCHANGED);
+
+						cv::flip(img,img,1);
+
+						cv::resize(img,
+								   helperImg[i],
+								   cv::Size(overlays[iOverlayIndex].getPhotoSizeX(i),
+											overlays[iOverlayIndex].getPhotoSizeY(i)),
+								   cv::INTER_NEAREST);
+
+						try
+						{
+							if (overlays[iOverlayIndex].getPhotoRotate(i) != 0)
+							{
+								double angle = double(overlays[iOverlayIndex].getPhotoRotate(i));
+								cv::Point2f center((helperImg[i].cols - 1) / 2 , (helperImg[i].rows - 1) / 2);
+								cv::Mat rot =  cv::getRotationMatrix2D(center, angle, 1.0);
+
+								cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), helperImg[i].size(), angle).boundingRect2f();
+
+								rot.at<double>(0,2) += bbox.width / 2.0 - helperImg[i].cols / 2.0;
+								rot.at<double>(1,2) += bbox.height / 2.0 - helperImg[i].rows / 2.0;
+
+								cv::warpAffine(helperImg[i], helperImg[i], rot, bbox.size());
+
+							}
+						}
+						catch(...)
+						{
+							;
+						}
+
+						try
+						{
+							helperImg[11] = cv::Mat( helperImg[10],
+													cv::Rect(overlays[iOverlayIndex].getPhotoPosiX(i),
+															 overlays[iOverlayIndex].getPhotoPosiY(i),
+															 helperImg[i].cols,
+															 helperImg[i].rows));
+							helperImg[i].copyTo(helperImg[11]);
+						}
+						catch(...)
+						{
+							;
+						}
+					}
+
+					helperImg[12] = overlays[iOverlayIndex].getFullImg();
+
+					overlayImage(&helperImg[10],&helperImg[12],cv::Point(0,0));
+
+					img = helperImg[10];
+
+					finalPhoto = finalPhoto + "_overlay";
+
+					break;
+				}
+
+				finalPhoto = finalPhoto + ".jpg";
+
+				cv::imwrite(finalPhoto, img);
+
+				start_time = time(0) + 10;
+
+				iStateTakePhoto = 6;
+
+				break;
+
+			case 6:
+
+				img =  cv::imread(finalPhoto, cv::IMREAD_UNCHANGED);
+
+				if (time(0) >= start_time)
+				{
+					iStateTakePhoto = 0;
+				}
+
+				break;
+
+			case 7:
+
+				img =  cv::imread(finalPhoto, cv::IMREAD_UNCHANGED);
+
+				if (time(0) >= start_time)
+				{
+					iStateTakePhoto = 0;
+				}
+
+				break;
+
+			default:
+				img = cv::imread("error.jpg", cv::IMREAD_UNCHANGED);
+			}
+		}
+		catch(...)
+		{
+			img = cv::imread("error.jpg", cv::IMREAD_UNCHANGED);
+		}
     }
-    catch(...)
-    {
-        cv::Mat img = cv::imread("error.jpg", cv::IMREAD_UNCHANGED);
-    }
-    
     isReadyForNextImg = TRUE;
 
     return img;

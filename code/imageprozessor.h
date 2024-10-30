@@ -19,7 +19,7 @@ public:
     ImageProzessor(std::string pFolderLogo, std::string pFolderOvlerlay, int iDisplayHeight);
 
     void overlayImage(cv::Mat* src, cv::Mat* overlay, const cv::Point& location);
-
+    
     cv::Mat getImage();
 
     bool getImageIsReady();
@@ -75,13 +75,15 @@ private:
     std::vector <std::string> pFiles;
     cv::Mat background, backgroundPreview, helperImg[25];
     int iPvHeight = 0, iPvWidth = 0;
-    int iSensorHeight = 0, iSensorWidth = 0;
+    int iSensorHeight = 0, iSensorWidth = 0, iDisplayHeight = 0;
     float previewFactor = 0.0, logoFactor;
     int iStateTakePhoto = 0, iCounterPhotos = 0;
     std::string pPhotos[10], pSavePhoto, finalPhoto, Countdown;
     std::time_t start_time;
     int fY, fX;
     bool isReadyForNextImg = TRUE;
+    
+	void checkUsbDrive();
 };
 
 #endif // IMAGEPROZESSOR_H

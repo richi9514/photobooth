@@ -16,6 +16,11 @@
 #include <gphoto2/gphoto2-camera.h>
 #include <gphoto2/gphoto2-file.h>
 #include <gphoto2/gphoto2-context.h>
+#include <thread>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+
 
 
 class CameraControler
@@ -26,11 +31,13 @@ public:
     cv::Mat GetPhoto(std::string imagePath);
 
     cv::Mat GetPreview();
+    
+    bool CameraInError();
 
 private:
     Camera *camera;
     GPContext *context = gp_context_new();
-    bool xFirstPreview = TRUE, xCameraConnectionOk;
+    bool xFirstPreview = TRUE, xCameraConnectionOk, xCameraInError;
     int colsPreview, rowsPreview;
     int displayHeight, displayWidth;
     char pathPreview[16] = "testPreview.jpg";
